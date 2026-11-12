@@ -1,6 +1,6 @@
 #!/bin/sh
 # Rebuilds the release zip from VideoLAN's prebuilt TVVLCKit, unchanged except that the
-# debug symbols (dSYMs, ~460 MB) are dropped. Version, URL and checksum are VideoLAN's own,
+# debug symbols (dSYMs, ~460 MB) and the Info.plist entries naming them are dropped. Version, URL and checksum are VideoLAN's own,
 # from Packaging/podspecs/TVVLCKit.podspec in https://code.videolan.org/videolan/VLCKit.
 set -e
 VERSION="3.7.4"
@@ -13,9 +13,16 @@ echo "$SHA256  $tmp/tvvlckit.tar.xz" | shasum -a 256 -c -
 tar -xf "$tmp/tvvlckit.tar.xz" -C "$tmp"
 cd "$tmp/TVVLCKit-binary"
 rm -rf TVVLCKit.xcframework/*/dSYMs
+# Xcode fails the build if the plist still names the removed dSYMs folders.
+n=$(plutil -extract AvailableLibraries raw TVVLCKit.xcframework/Info.plist)
+i=0; while [ $i -lt "$n" ]; do
+  plutil -remove "AvailableLibraries.$i.DebugSymbolsPath" TVVLCKit.xcframework/Info.plist 2>/dev/null || true
+  i=$((i + 1))
+done
 xattr -cr TVVLCKit.xcframework
 rm -f "$out"
 COPYFILE_DISABLE=1 zip -qrX -y "$out" TVVLCKit.xcframework
+cd - >/dev/null
 rm -rf "$tmp"
 echo "TVVLCKit $VERSION -> $out"
 swift package compute-checksum "$out"
